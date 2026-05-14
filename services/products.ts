@@ -1,72 +1,155 @@
 import {
-  collection, addDoc, updateDoc, deleteDoc, doc,
-  getDocs, getDoc, query, orderBy, serverTimestamp, where,
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  orderBy,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where,
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { db, storage } from '@/lib/firebase';
-import { Product } from '@/types';
 
-const path = (uid: string) => `users/${uid}/products`;
+import { db } from '@/lib/firebase';
 
-export const getProducts = async (uid: string): Promise<Product[]> => {
-  const snap = await getDocs(query(collection(db, path(uid)), orderBy('createdAt', 'desc')));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Product));
-};
+export interface ProductInput {
+  name: string;
+  barcode?: string;
+  sellingPrice: number;
+  costPrice: number;
+  quantity: number;
+  imageUrl?: string;
+}
 
-export const getProduct = async (uid: string, pid: string): Promise<Product | null> => {
-  const snap = await getDoc(doc(db, path(uid), pid));
-  return snap.exists() ? ({ id: snap.id, ...snap.data() } as Product) : null;
-};
+const PRODUCTS = 'products';
 
-export const getProductByBarcode = async (uid: string, barcode: string): Promise<Product | null> => {
-  const snap = await getDocs(query(collection(db, path(uid)), where('barcode', '==', barcode)));
-  return snap.empty ? null : ({ id: snap.docs[0].id, ...snap.docs[0].data() } as Product);
+async function toWebP(
+  file: File,
+  quality = 0.82,
+  maxSize = 1200
+): Promise<Blob> {
+  const imageBitmap = await createImageBitmap(file);
+
+  const scale = Math.min(
+    1,
+    maxSize / Math.max(imageBitmap.width, imageBitmap.height)
+  );
+
+  const width = Math.round(imageBitmap.width * scale);
+  const height = Math.round(imageBitmap.height * scale);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    throw new Error('Canvas context not available');
+  }
+
+  ctx.drawImage(imageBitmap, 0, 0, width, height);
+
+  return await new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error('WebP conversion failed'));
+      },
+      'image/webp',
+      quality
+    );
+  });
+}
+
+export const uploadProductImage = async (
+  uid: string,
+  file: File
+): Promise<string> => {
+  const blob = await toWebP(file, 0.82, 1200);
+
+  const formData = new FormData();
+
+  formData.append(
+    'file',
+    new File([blob], 'product.webp', {
+      type: 'image/webp',
+    })
+  );
+
+  formData.append(
+    'upload_preset',
+    process.env['NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET'] || ''
+  );
+
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${
+      process.env['NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME']
+    }/image/upload`,
+    {
+      method: 'POST',
+      body: formData,
+    }
+  );
+
+  const data = await response.json();
+
+  if (!data.secure_url) {
+    console.error(data);
+    throw new Error('Cloudinary upload failed');
+  }
+
+  return data.secure_url;
 };
 
 export const addProduct = async (
   uid: string,
-  data: Omit<Product, 'id' | 'createdAt' | 'userId'>
-): Promise<string> => {
-  const r = await addDoc(collection(db, path(uid)), { ...data, userId: uid, createdAt: serverTimestamp() });
-  return r.id;
+  product: ProductInput
+) => {
+  return addDoc(collection(db, PRODUCTS), {
+    ...product,
+    uid,
+    createdAt: serverTimestamp(),
+  });
 };
 
 export const updateProduct = async (
-  uid: string, pid: string,
-  data: Partial<Omit<Product, 'id' | 'createdAt' | 'userId'>>
-): Promise<void> => updateDoc(doc(db, path(uid), pid), data);
+  productId: string,
+  product: Partial<ProductInput>
+) => {
+  const productRef = doc(db, PRODUCTS, productId);
 
-export const deleteProduct = async (uid: string, pid: string): Promise<void> => {
-  const snap = await getDoc(doc(db, path(uid), pid));
-  if (snap.exists()) {
-    const url = snap.data().imageUrl as string;
-    if (url?.includes('firebasestorage.googleapis.com')) {
-      try { await deleteObject(ref(storage, url)); } catch { /* already gone */ }
-    }
-  }
-  await deleteDoc(doc(db, path(uid), pid));
+  return updateDoc(productRef, product);
 };
 
-// ── Image Upload: convert → WebP then push to Firebase Storage ──────────────
-export const uploadProductImage = async (uid: string, file: File, pid = 'temp'): Promise<string> => {
-  const blob      = await toWebP(file, 0.82, 1200);
-  const storageRef = ref(storage, `users/${uid}/products/${pid}/${Date.now()}.webp`);
-  await uploadBytes(storageRef, blob, { contentType: 'image/webp' });
-  return getDownloadURL(storageRef);
+export const deleteProduct = async (productId: string) => {
+  return deleteDoc(doc(db, PRODUCTS, productId));
 };
 
-const toWebP = (file: File, quality: number, maxW: number): Promise<Blob> =>
-  new Promise((res, rej) => {
-    const img = new Image();
-    img.onload = () => {
-      let w = img.width, h = img.height;
-      if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
-      const c = document.createElement('canvas');
-      c.width = w; c.height = h;
-      c.getContext('2d')!.drawImage(img, 0, 0, w, h);
-      URL.revokeObjectURL(img.src);
-      c.toBlob((b) => b ? res(b) : rej(new Error('toBlob failed')), 'image/webp', quality);
-    };
-    img.onerror = rej;
-    img.src = URL.createObjectURL(file);
-  });
+export const getProducts = async (uid: string) => {
+  const q = query(
+    collection(db, PRODUCTS),
+    where('uid', '==', uid),
+    orderBy('createdAt', 'desc')
+  );
+
+  const snap = await getDocs(q);
+
+  return snap.docs.map((docSnap: any) => ({
+    id: docSnap.id,
+    ...docSnap.data(),
+  }));
+};
+
+export const getProduct = async (productId: string) => {
+  const snap = await getDoc(doc(db, PRODUCTS, productId));
+
+  if (!snap.exists()) return null;
+
+  return {
+    id: snap.id,
+    ...snap.data(),
+  };
+};
