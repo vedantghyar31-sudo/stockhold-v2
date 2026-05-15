@@ -44,6 +44,7 @@ export interface Bill {
   paymentStatus:   PaymentStatus;
   notes?:          string;
   createdAt:       Timestamp;
+  customerPhone?: string;
 }
 
 // ─── Profile ──────────────────────────────────────────────────────────────────

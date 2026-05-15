@@ -41,6 +41,7 @@ async function toWebP(
   const height = Math.round(imageBitmap.height * scale);
 
   const canvas = document.createElement('canvas');
+
   canvas.width = width;
   canvas.height = height;
 
@@ -55,8 +56,11 @@ async function toWebP(
   return await new Promise((resolve, reject) => {
     canvas.toBlob(
       (blob) => {
-        if (blob) resolve(blob);
-        else reject(new Error('WebP conversion failed'));
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error('WebP conversion failed'));
+        }
       },
       'image/webp',
       quality
@@ -151,5 +155,25 @@ export const getProduct = async (productId: string) => {
   return {
     id: snap.id,
     ...snap.data(),
+  };
+};
+
+export const getProductByBarcode = async (
+  uid: string,
+  barcode: string
+): Promise<any> => {
+  const q = query(
+    collection(db, PRODUCTS),
+    where('uid', '==', uid),
+    where('barcode', '==', barcode)
+  );
+
+  const snap = await getDocs(q);
+
+  if (snap.empty) return null;
+
+  return {
+    id: snap.docs[0].id,
+    ...(snap.docs[0].data() as any),
   };
 };
