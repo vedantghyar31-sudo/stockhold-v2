@@ -1,179 +1,59 @@
 import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  getDocs,
-  orderBy,
-  query,
-  serverTimestamp,
-  updateDoc,
-  where,
+  collection, addDoc, updateDoc, deleteDoc, doc,
+  getDocs, getDoc, query, orderBy, serverTimestamp, where,
 } from 'firebase/firestore';
-
 import { db } from '@/lib/firebase';
+import { uploadToCloudinary } from '@/lib/cloudinary';
+import { Product } from '@/types';
 
-export interface ProductInput {
-  name: string;
-  barcode?: string;
-  sellingPrice: number;
-  costPrice: number;
-  quantity: number;
-  imageUrl?: string;
-}
+const path = (uid: string) => `users/${uid}/products`;
 
-const PRODUCTS = 'products';
+export const getProducts = async (uid: string): Promise<Product[]> => {
+  const snap = await getDocs(query(collection(db, path(uid)), orderBy('createdAt', 'desc')));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Product));
+};
 
-async function toWebP(
-  file: File,
-  quality = 0.82,
-  maxSize = 1200
-): Promise<Blob> {
-  const imageBitmap = await createImageBitmap(file);
+export const getProduct = async (uid: string, pid: string): Promise<Product | null> => {
+  const snap = await getDoc(doc(db, path(uid), pid));
+  return snap.exists() ? ({ id: snap.id, ...snap.data() } as Product) : null;
+};
 
-  const scale = Math.min(
-    1,
-    maxSize / Math.max(imageBitmap.width, imageBitmap.height)
+export const getProductByBarcode = async (uid: string, barcode: string): Promise<Product | null> => {
+  if (!barcode.trim()) return null;
+  const snap = await getDocs(
+    query(collection(db, path(uid)), where('barcode', '==', barcode.trim()))
   );
-
-  const width = Math.round(imageBitmap.width * scale);
-  const height = Math.round(imageBitmap.height * scale);
-
-  const canvas = document.createElement('canvas');
-
-  canvas.width = width;
-  canvas.height = height;
-
-  const ctx = canvas.getContext('2d');
-
-  if (!ctx) {
-    throw new Error('Canvas context not available');
-  }
-
-  ctx.drawImage(imageBitmap, 0, 0, width, height);
-
-  return await new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (blob) {
-          resolve(blob);
-        } else {
-          reject(new Error('WebP conversion failed'));
-        }
-      },
-      'image/webp',
-      quality
-    );
-  });
-}
-
-export const uploadProductImage = async (
-  uid: string,
-  file: File
-): Promise<string> => {
-  const blob = await toWebP(file, 0.82, 1200);
-
-  const formData = new FormData();
-
-  formData.append(
-    'file',
-    new File([blob], 'product.webp', {
-      type: 'image/webp',
-    })
-  );
-
-  formData.append(
-    'upload_preset',
-    process.env['NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET'] || ''
-  );
-
-  const response = await fetch(
-    `https://api.cloudinary.com/v1_1/${
-      process.env['NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME']
-    }/image/upload`,
-    {
-      method: 'POST',
-      body: formData,
-    }
-  );
-
-  const data = await response.json();
-
-  if (!data.secure_url) {
-    console.error(data);
-    throw new Error('Cloudinary upload failed');
-  }
-
-  return data.secure_url;
+  if (snap.empty) return null;
+  return { id: snap.docs[0].id, ...snap.docs[0].data() } as Product;
 };
 
 export const addProduct = async (
   uid: string,
-  product: ProductInput
-) => {
-  return addDoc(collection(db, PRODUCTS), {
-    ...product,
-    uid,
+  data: Omit<Product, 'id' | 'createdAt' | 'userId'>
+): Promise<string> => {
+  const r = await addDoc(collection(db, path(uid)), {
+    ...data,
+    userId:    uid,
     createdAt: serverTimestamp(),
   });
+  return r.id;
 };
 
 export const updateProduct = async (
-  productId: string,
-  product: Partial<ProductInput>
-) => {
-  const productRef = doc(db, PRODUCTS, productId);
-
-  return updateDoc(productRef, product);
-};
-
-export const deleteProduct = async (productId: string) => {
-  return deleteDoc(doc(db, PRODUCTS, productId));
-};
-
-export const getProducts = async (uid: string) => {
-  const q = query(
-    collection(db, PRODUCTS),
-    where('uid', '==', uid),
-    orderBy('createdAt', 'desc')
-  );
-
-  const snap = await getDocs(q);
-
-  return snap.docs.map((docSnap: any) => ({
-    id: docSnap.id,
-    ...docSnap.data(),
-  }));
-};
-
-export const getProduct = async (productId: string) => {
-  const snap = await getDoc(doc(db, PRODUCTS, productId));
-
-  if (!snap.exists()) return null;
-
-  return {
-    id: snap.id,
-    ...snap.data(),
-  };
-};
-
-export const getProductByBarcode = async (
   uid: string,
-  barcode: string
-): Promise<any> => {
-  const q = query(
-    collection(db, PRODUCTS),
-    where('uid', '==', uid),
-    where('barcode', '==', barcode)
-  );
+  pid: string,
+  data: Partial<Omit<Product, 'id' | 'createdAt' | 'userId'>>
+): Promise<void> => {
+  await updateDoc(doc(db, path(uid), pid), data as Record<string, unknown>);
+};
 
-  const snap = await getDocs(q);
+export const deleteProduct = async (uid: string, pid: string): Promise<void> => {
+  await deleteDoc(doc(db, path(uid), pid));
+};
 
-  if (snap.empty) return null;
-
-  return {
-    id: snap.docs[0].id,
-    ...(snap.docs[0].data() as any),
-  };
+/**
+ * Upload product image to Cloudinary, return the secure URL.
+ */
+export const uploadProductImage = async (file: File): Promise<string> => {
+  return uploadToCloudinary(file, 'stockhold/products');
 };

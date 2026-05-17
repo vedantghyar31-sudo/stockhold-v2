@@ -67,10 +67,9 @@ export function SellModal({
       const newQty =
         product.quantity - qty;
 
-      await updateProduct(product.id, {
+      await updateProduct(user.uid, product.id, {
         quantity: newQty,
       });
-
       toast.success(
         `Sold ${qty} × ${product.name}`
       );
