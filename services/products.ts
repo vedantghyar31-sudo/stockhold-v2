@@ -33,7 +33,7 @@ export const addProduct = async (
 ): Promise<string> => {
   const r = await addDoc(collection(db, path(uid)), {
     ...data,
-    userId:    uid,
+    userId: uid,
     createdAt: serverTimestamp(),
   });
   return r.id;
@@ -55,5 +55,5 @@ export const deleteProduct = async (uid: string, pid: string): Promise<void> => 
  * Upload product image to Cloudinary, return the secure URL.
  */
 export const uploadProductImage = async (file: File): Promise<string> => {
-  return uploadToCloudinary(file, 'stockhold/products');
+  return uploadToCloudinary(file);
 };

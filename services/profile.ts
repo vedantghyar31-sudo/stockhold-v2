@@ -17,7 +17,7 @@ export const saveProfile = async (uid: string, data: Partial<ShopProfile>): Prom
  * Upload shop logo to Cloudinary and return the secure URL.
  */
 export const uploadLogo = async (_uid: string, file: File): Promise<string> => {
-  return uploadToCloudinary(file, 'stockhold/logos');
+  return uploadToCloudinary(file);
 };
 
 /**

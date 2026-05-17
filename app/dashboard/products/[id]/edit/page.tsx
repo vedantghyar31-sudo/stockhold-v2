@@ -1,57 +1,62 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
-import { getProduct, updateProduct, uploadProductImage } from '@/services/products';
+import { addProduct, uploadProductImage, updateProduct } from '@/services/products';
 import { ProductForm } from '@/components/products/ProductForm';
 import { Product } from '@/types';
 import toast from 'react-hot-toast';
 
-export default function EditProductPage() {
-  const { id }    = useParams<{ id: string }>();
-  const router    = useRouter();
+export default function AddProductPage() {
   const user      = useAuthStore((s) => s.user);
-  const [product, setProduct] = useState<Product | null>(null);
+  const router    = useRouter();
+  const params    = useSearchParams();
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!user) return;
-    getProduct(user.uid, id).then(setProduct);
-  }, [user, id]);
-
   const handleSubmit = async (data: Partial<Product>, imageFile?: File) => {
-    if (!user || !product) return;
+    if (!user) return;
     setLoading(true);
-    try {
-      let imageUrl = data.imageUrl ?? product.imageUrl;
 
-      // Upload new image first if one was selected
+    try {
+      // Step 1 — Create product in Firestore with empty imageUrl first
+      // This way product is always saved even if image upload fails
+      const id = await addProduct(user.uid, {
+        name:         data.name         || '',
+        imageUrl:     '',               // always start empty — set after upload
+        sellingPrice: data.sellingPrice || 0,
+        costPrice:    data.costPrice    || 0,
+        quantity:     data.quantity     || 0,
+        barcode:      data.barcode      || '',
+      });
+
+      // Step 2 — Upload image to Cloudinary and save real URL
       if (imageFile) {
         try {
-          imageUrl = await uploadProductImage(imageFile);
-        } catch (err) {
-          console.error('Image upload failed:', err);
-          toast.error('Image upload failed — other changes will still be saved');
+          const imageUrl = await uploadProductImage(imageFile);
+          // Save the real Cloudinary URL (never a blob URL)
+          await updateProduct(user.uid, id, { imageUrl });
+          toast.success('Product added with image!');
+        } catch (uploadErr) {
+          console.error('Image upload failed:', uploadErr);
+          // Product was saved, just without image — don't block the user
+          toast('Product saved. Image upload failed — you can add it by editing.', {
+            icon: '⚠️',
+            duration: 5000,
+          });
         }
+      } else {
+        toast.success('Product added!');
       }
 
-      await updateProduct(user.uid, product.id, { ...data, imageUrl });
-      toast.success('Product updated!');
-      router.replace(`/dashboard/products/${product.id}`);
+      router.replace(`/dashboard/products/${id}`);
     } catch (err) {
-      console.error('Update product error:', err);
-      toast.error('Failed to update product');
+      console.error('Add product error:', err);
+      toast.error('Failed to save product. Please try again.');
     } finally {
       setLoading(false);
     }
   };
-
-  if (!product) return (
-    <div className="max-w-xl mx-auto flex items-center justify-center py-20">
-      <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
 
   return (
     <div className="max-w-xl mx-auto">
@@ -61,13 +66,15 @@ export default function EditProductPage() {
       >
         <ArrowLeft size={17} /> Back
       </button>
-      <h1 className="text-2xl font-bold font-display text-gray-900 dark:text-white mb-6">Edit Product</h1>
+      <h1 className="text-2xl font-bold font-display text-gray-900 dark:text-white mb-6">
+        Add Product
+      </h1>
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-6">
         <ProductForm
-          initialData={product}
+          initialData={{ barcode: params.get('barcode') || '' }}
           onSubmit={handleSubmit}
           loading={loading}
-          submitLabel="Save Changes"
+          submitLabel="Add Product"
         />
       </div>
     </div>

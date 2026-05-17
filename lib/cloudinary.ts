@@ -1,73 +1,96 @@
 /**
- * Cloudinary upload helper — used for product images and shop logo.
- * Fetches a secure signature from /api/cloudinary-sign (keeps secret off client).
+ * Cloudinary upload helper.
+ * Fetches a secure signature from /api/cloudinary-sign (keeps API secret off client).
+ * Converts image to WebP before uploading.
  */
 
-interface CloudinaryResponse {
-  secure_url: string;
-  public_id:  string;
-}
-
 /**
- * Convert any image File to WebP Blob using canvas (client-side, no dep).
+ * Convert any image File to a compressed WebP Blob using canvas.
  */
 const toWebP = (file: File, quality = 0.85, maxW = 1200): Promise<Blob> =>
   new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      let w = img.width, h = img.height;
+      let w = img.width;
+      let h = img.height;
       if (w > maxW) { h = Math.round((h * maxW) / w); w = maxW; }
       const canvas = document.createElement('canvas');
-      canvas.width = w;
+      canvas.width  = w;
       canvas.height = h;
-      canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('Canvas not available')); return; }
+      ctx.drawImage(img, 0, 0, w, h);
       URL.revokeObjectURL(img.src);
       canvas.toBlob(
-        (blob) => (blob ? resolve(blob) : reject(new Error('toBlob failed'))),
+        (blob) => (blob ? resolve(blob) : reject(new Error('toBlob returned null'))),
         'image/webp',
         quality
       );
     };
-    img.onerror = () => reject(new Error('Image load failed'));
+    img.onerror = () => reject(new Error('Failed to load image for conversion'));
     img.src = URL.createObjectURL(file);
   });
 
 /**
  * Upload a File to Cloudinary.
- * @param file  The image file chosen by the user
- * @param folder Override subfolder (default: 'stockhold')
+ * Returns the secure_url of the uploaded image.
  */
-export async function uploadToCloudinary(file: File, folder?: string): Promise<string> {
-  // 1. Get signed params from our backend
+export async function uploadToCloudinary(file: File): Promise<string> {
+  // 1. Get signed params from our secure backend route
   const sigRes = await fetch('/api/cloudinary-sign');
+
   if (!sigRes.ok) {
-    const err = await sigRes.json().catch(() => ({}));
-    throw new Error(err.error || 'Failed to get upload signature');
+    let errMsg = 'Failed to get upload signature';
+    try {
+      const errData = await sigRes.json();
+      errMsg = errData.error || errMsg;
+    } catch { /* ignore parse error */ }
+    throw new Error(errMsg);
   }
-  const { signature, timestamp, apiKey, cloudName, folder: defaultFolder } = await sigRes.json();
 
-  // 2. Convert to WebP
-  const blob = await toWebP(file);
+  const { signature, timestamp, apiKey, cloudName, folder } = await sigRes.json();
 
-  // 3. Build FormData for Cloudinary upload API
-  const formData = new FormData();
-  formData.append('file',       blob,                       'image.webp');
-  formData.append('api_key',    apiKey);
-  formData.append('timestamp',  String(timestamp));
-  formData.append('signature',  signature);
-  formData.append('folder',     folder ?? defaultFolder);
+  if (!signature || !timestamp || !apiKey || !cloudName) {
+    throw new Error('Invalid signature response from server');
+  }
 
-  // 4. POST to Cloudinary
+  // 2. Convert to WebP for better compression
+  let uploadBlob: Blob;
+  try {
+    uploadBlob = await toWebP(file);
+  } catch (err) {
+    console.warn('WebP conversion failed, using original file:', err);
+    uploadBlob = file; // fallback to original
+  }
+
+  // 3. Build multipart form for Cloudinary
+  const form = new FormData();
+  form.append('file',      uploadBlob,       'image.webp');
+  form.append('api_key',   apiKey);
+  form.append('timestamp', String(timestamp));
+  form.append('signature', signature);
+  form.append('folder',    folder);
+
+  // 4. Upload to Cloudinary
   const uploadRes = await fetch(
     `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
-    { method: 'POST', body: formData }
+    { method: 'POST', body: form }
   );
 
   if (!uploadRes.ok) {
-    const errData = await uploadRes.json().catch(() => ({}));
-    throw new Error(errData.error?.message || 'Cloudinary upload failed');
+    let errMsg = `Cloudinary upload failed (${uploadRes.status})`;
+    try {
+      const errData = await uploadRes.json();
+      errMsg = errData.error?.message || errMsg;
+    } catch { /* ignore */ }
+    throw new Error(errMsg);
   }
 
-  const data: CloudinaryResponse = await uploadRes.json();
-  return data.secure_url;
+  const data = await uploadRes.json();
+
+  if (!data.secure_url) {
+    throw new Error('Cloudinary did not return a URL');
+  }
+
+  return data.secure_url as string;
 }

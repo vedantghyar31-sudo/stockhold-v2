@@ -9,41 +9,50 @@ import { Product } from '@/types';
 import toast from 'react-hot-toast';
 
 export default function AddProductPage() {
-  const user   = useAuthStore((s) => s.user);
-  const router = useRouter();
-  const params = useSearchParams();
+  const user      = useAuthStore((s) => s.user);
+  const router    = useRouter();
+  const params    = useSearchParams();
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (data: Partial<Product>, imageFile?: File) => {
     if (!user) return;
     setLoading(true);
-    try {
-      // 1. Upload image first (if any) — get URL before creating Firestore doc
-      let imageUrl = '';
-      if (imageFile) {
-        try {
-          imageUrl = await uploadProductImage(imageFile);
-        } catch (err) {
-          console.error('Image upload failed:', err);
-          toast.error('Image upload failed — product will be saved without image');
-        }
-      }
 
-      // 2. Create product in Firestore with imageUrl already set
+    try {
+      // Step 1 — Create product in Firestore with empty imageUrl first
+      // This way product is always saved even if image upload fails
       const id = await addProduct(user.uid, {
         name:         data.name         || '',
-        imageUrl,
+        imageUrl:     '',               // always start empty — set after upload
         sellingPrice: data.sellingPrice || 0,
         costPrice:    data.costPrice    || 0,
         quantity:     data.quantity     || 0,
         barcode:      data.barcode      || '',
       });
 
-      toast.success('Product added!');
+      // Step 2 — Upload image to Cloudinary and save real URL
+      if (imageFile) {
+        try {
+          const imageUrl = await uploadProductImage(imageFile);
+          // Save the real Cloudinary URL (never a blob URL)
+          await updateProduct(user.uid, id, { imageUrl });
+          toast.success('Product added with image!');
+        } catch (uploadErr) {
+          console.error('Image upload failed:', uploadErr);
+          // Product was saved, just without image — don't block the user
+          toast('Product saved. Image upload failed — you can add it by editing.', {
+            icon: '⚠️',
+            duration: 5000,
+          });
+        }
+      } else {
+        toast.success('Product added!');
+      }
+
       router.replace(`/dashboard/products/${id}`);
     } catch (err) {
       console.error('Add product error:', err);
-      toast.error('Failed to add product');
+      toast.error('Failed to save product. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -57,7 +66,9 @@ export default function AddProductPage() {
       >
         <ArrowLeft size={17} /> Back
       </button>
-      <h1 className="text-2xl font-bold font-display text-gray-900 dark:text-white mb-6">Add Product</h1>
+      <h1 className="text-2xl font-bold font-display text-gray-900 dark:text-white mb-6">
+        Add Product
+      </h1>
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-6">
         <ProductForm
           initialData={{ barcode: params.get('barcode') || '' }}
