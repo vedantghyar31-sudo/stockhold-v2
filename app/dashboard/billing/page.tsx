@@ -97,6 +97,7 @@ function BillingContent() {
         shopAddress:     profile?.shopAddress || '',
         shopPhone:       profile?.shopPhone   || '',
         shopLogo:        profile?.shopLogo    || '',
+        shopGstin:       (profile as any)?.shopGstin || '',
         customerName:    customerName.trim(),
         customerMobile:  customerMobile.trim(),
         items:           items as BillItem[],

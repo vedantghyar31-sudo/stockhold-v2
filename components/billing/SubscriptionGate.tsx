@@ -22,7 +22,7 @@ export function SubscriptionGate({ children, feature }: { children: React.ReactN
         </div>
         <h2 className="text-xl font-bold font-display text-gray-900 dark:text-white mb-2">Subscription Required</h2>
         <p className="text-gray-500 dark:text-slate-400 text-sm mb-6">
-          {feature ? `${feature} requires an active subscription.` : 'Subscribe to unlock all premium features.'} ₹2,000/month.
+          {feature ? `${feature} requires an active subscription.` : 'Subscribe to unlock all premium features.'} ₹399/month.
         </p>
         <Button onClick={() => router.push('/dashboard/subscription')} className="w-full">
           <Crown size={16} /> View Plans

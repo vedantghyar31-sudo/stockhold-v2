@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { DollarSign, TrendingUp, FileText, CheckCircle, Clock, AlertCircle, RotateCcw, ShoppingBag, BarChart2 } from 'lucide-react';
+import { DollarSign, TrendingUp, CheckCircle, Clock, AlertCircle, BarChart2 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { getAnalytics } from '@/services/analytics';
 import { AnalyticsSummary, TimeFilter } from '@/types';
@@ -42,8 +42,15 @@ function AnalyticsContent() {
       {/* Time filters */}
       <div className="flex gap-1.5 mb-6 bg-gray-100 dark:bg-slate-800 rounded-xl p-1 w-fit flex-wrap">
         {FILTERS.map((f) => (
-          <button key={f.value} onClick={() => setFilter(f.value)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filter === f.value ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
+          <button
+            key={f.value}
+            onClick={() => setFilter(f.value)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              filter === f.value
+                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-gray-200'
+            }`}
+          >
             {f.label}
           </button>
         ))}
@@ -51,28 +58,21 @@ function AnalyticsContent() {
 
       {loading ? (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{Array(8).fill(0).map((_, i) => <div key={i} className="h-28 skeleton rounded-2xl" />)}</div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {Array(6).fill(0).map((_, i) => <div key={i} className="h-28 skeleton rounded-2xl" />)}
+          </div>
           <div className="h-64 skeleton rounded-2xl" />
         </div>
       ) : (
         <>
-          {/* Revenue */}
-          <p className="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wide mb-3">Revenue & Profit</p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <StatCard icon={DollarSign}  label="Total Revenue"    value={formatINR(data?.totalRevenue    || 0)} color="bg-blue-500"    />
-            <StatCard icon={TrendingUp}  label="Total Collected"  value={formatINR(data?.totalProfit     || 0)} color="bg-green-500"   />
-            <StatCard icon={DollarSign}  label="Collected Amt"    value={formatINR(data?.collectedAmount || 0)} color="bg-emerald-500" />
-            <StatCard icon={AlertCircle} label="Pending Amt"      value={formatINR(data?.pendingAmount   || 0)} color="bg-red-500"     />
-          </div>
-
-          {/* Bills */}
-          <p className="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wide mb-3">Billing Breakdown</p>
+          {/* Revenue & Profit stats — no Billing Breakdown section */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
-            <StatCard icon={FileText}    label="Total Bills"    value={`${data?.totalBills    || 0}`} color="bg-violet-500" />
-            <StatCard icon={CheckCircle} label="Paid Bills"     value={`${data?.paidBills     || 0}`} color="bg-green-500"  />
-            <StatCard icon={Clock}       label="Pending Bills"  value={`${data?.pendingBills  || 0}`} color="bg-yellow-500" />
-            <StatCard icon={ShoppingBag} label="Half Paid"      value={`${data?.halfPaidBills || 0}`} color="bg-orange-500" />
-            <StatCard icon={RotateCcw}   label="Returned"       value={`${data?.returnedBills || 0}`} color="bg-red-500"    />
+            <StatCard icon={DollarSign}  label="Total Revenue"   value={formatINR(data?.totalRevenue    || 0)} color="bg-blue-500"    />
+            <StatCard icon={TrendingUp}  label="Total Collected" value={formatINR(data?.totalProfit     || 0)} color="bg-green-500"   />
+            <StatCard icon={DollarSign}  label="Collected Amt"   value={formatINR(data?.collectedAmount || 0)} color="bg-emerald-500" />
+            <StatCard icon={AlertCircle} label="Pending Amount"  value={formatINR(data?.pendingAmount   || 0)} color="bg-red-500"     />
+            <StatCard icon={CheckCircle} label="Paid Bills"      value={`${data?.paidBills    || 0}`}          color="bg-violet-500"  />
+            <StatCard icon={Clock}       label="Pending Bills"   value={`${data?.pendingBills || 0}`}          color="bg-orange-500"  />
           </div>
 
           {/* Charts */}
@@ -84,7 +84,9 @@ function AnalyticsContent() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="font-semibold text-gray-900 dark:text-white">{label}</h3>
-                  <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{FILTERS.find((f) => f.value === filter)?.label}</p>
+                  <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
+                    {FILTERS.find((f) => f.value === filter)?.label}
+                  </p>
                 </div>
                 <BarChart2 size={17} className="text-gray-300 dark:text-slate-600" />
               </div>
@@ -100,12 +102,17 @@ function AnalyticsContent() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                     <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v}`} />
-                    <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v: number) => [formatINR(v), label]} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: 12 }}
+                      formatter={(v: number) => [formatINR(v), label]}
+                    />
                     <Area type="monotone" dataKey={key} stroke={stroke} strokeWidth={2} fill={`url(#${grad})`} />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-44 flex items-center justify-center text-gray-400 dark:text-slate-600 text-sm">No data for this period</div>
+                <div className="h-44 flex items-center justify-center text-gray-400 dark:text-slate-600 text-sm">
+                  No data for this period
+                </div>
               )}
             </div>
           ))}

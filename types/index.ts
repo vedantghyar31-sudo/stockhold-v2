@@ -1,6 +1,5 @@
 import { Timestamp } from 'firebase/firestore';
 
-// ─── Product ─────────────────────────────────────────────────────────────────
 export interface Product {
   id:           string;
   name:         string;
@@ -13,7 +12,6 @@ export interface Product {
   userId:       string;
 }
 
-// ─── Bill ─────────────────────────────────────────────────────────────────────
 export interface BillItem {
   productId:   string;
   productName: string;
@@ -33,6 +31,7 @@ export interface Bill {
   shopAddress?:    string;
   shopPhone?:      string;
   shopLogo?:       string;
+  shopGstin?:      string;
   customerName:    string;
   customerMobile:  string;
   items:           BillItem[];
@@ -44,22 +43,20 @@ export interface Bill {
   paymentStatus:   PaymentStatus;
   notes?:          string;
   createdAt:       Timestamp;
-  customerPhone?: string;
 }
 
-// ─── Profile ──────────────────────────────────────────────────────────────────
 export interface ShopProfile {
   shopName:    string;
   shopLogo:    string;
   shopAddress: string;
   shopPhone:   string;
+  shopGstin:   string;
   displayName: string;
   email:       string;
   photoURL:    string;
   createdAt?:  Timestamp;
 }
 
-// ─── Subscription ─────────────────────────────────────────────────────────────
 export type SubscriptionStatus = 'active' | 'inactive' | 'expired';
 
 export interface Subscription {
@@ -71,7 +68,6 @@ export interface Subscription {
   razorpayOrderId?:   string;
 }
 
-// ─── Analytics ────────────────────────────────────────────────────────────────
 export type TimeFilter = 'today' | 'week' | 'month' | 'year';
 
 export interface AnalyticsSummary {

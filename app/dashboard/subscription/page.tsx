@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Crown, CheckCircle, XCircle, Zap } from 'lucide-react';
+import { Crown, CheckCircle, XCircle } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { useSubscription } from '@/hooks/useSubscription';
 import { activateSubscription } from '@/services/subscription';
@@ -10,6 +10,8 @@ import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 
 declare global { interface Window { Razorpay: any; } }
+
+const PLAN_AMOUNT = 399;
 
 const FEATURES = [
   'Unlimited product management',
@@ -32,7 +34,8 @@ export default function SubscriptionPage() {
     if (window.Razorpay) { res(true); return; }
     const s = document.createElement('script');
     s.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    s.onload = () => res(true); s.onerror = () => res(false);
+    s.onload = () => res(true);
+    s.onerror = () => res(false);
     document.body.appendChild(s);
   });
 
@@ -41,21 +44,28 @@ export default function SubscriptionPage() {
     setPaying(true);
     const ok = await load();
     if (!ok) { toast.error('Payment gateway failed to load.'); setPaying(false); return; }
+
     const key = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
     if (!key) { toast.error('Razorpay key not configured.'); setPaying(false); return; }
 
     const rzp = new window.Razorpay({
       key,
-      amount:      2000 * 100,
+      amount:      PLAN_AMOUNT * 100,
       currency:    'INR',
       name:        'Stockhold',
-      description: 'Monthly Subscription – ₹2,000/month',
+      description: `Monthly Subscription – ${formatINR(PLAN_AMOUNT)}/month`,
       handler: async (response: any) => {
         try {
-          await activateSubscription(user.uid, response.razorpay_payment_id, response.razorpay_order_id || 'direct');
+          await activateSubscription(
+            user.uid,
+            response.razorpay_payment_id,
+            response.razorpay_order_id || 'direct'
+          );
           toast.success('Subscription activated! 🎉');
           window.location.reload();
-        } catch { toast.error('Activation failed. Contact support.'); }
+        } catch {
+          toast.error('Activation failed. Contact support.');
+        }
       },
       prefill:  { name: user.displayName || '', email: user.email || '' },
       theme:    { color: '#3b82f6' },
@@ -65,8 +75,10 @@ export default function SubscriptionPage() {
     rzp.open();
   };
 
-  const expiryDate = subscription?.expiryDate?.toDate ? format(subscription.expiryDate.toDate(), 'dd MMM yyyy') : null;
-  const startDate  = subscription?.startDate?.toDate  ? format(subscription.startDate.toDate(),  'dd MMM yyyy') : null;
+  const expiryDate = subscription?.expiryDate?.toDate
+    ? format(subscription.expiryDate.toDate(), 'dd MMM yyyy') : null;
+  const startDate  = subscription?.startDate?.toDate
+    ? format(subscription.startDate.toDate(),  'dd MMM yyyy') : null;
 
   if (subLoading) return (
     <div className="flex items-center justify-center min-h-[60vh]">
@@ -103,7 +115,9 @@ export default function SubscriptionPage() {
           </div>
           <div>
             <p className="font-bold text-red-800 dark:text-red-400">No Active Subscription</p>
-            <p className="text-sm text-red-600 dark:text-red-500 mt-0.5">Subscribe to unlock billing, analytics & all premium features.</p>
+            <p className="text-sm text-red-600 dark:text-red-500 mt-0.5">
+              Subscribe to unlock billing, analytics &amp; all premium features.
+            </p>
           </div>
         </div>
       )}
@@ -116,17 +130,20 @@ export default function SubscriptionPage() {
             <span className="font-bold text-lg font-display">Stockhold Pro</span>
           </div>
           <div className="flex items-end gap-1">
-            <span className="text-4xl font-bold">₹2,000</span>
+            <span className="text-4xl font-bold">₹{PLAN_AMOUNT}</span>
             <span className="text-white/70 mb-1">/ month</span>
           </div>
           <p className="text-white/70 text-sm mt-1">Everything you need to run your shop</p>
         </div>
         <div className="p-5">
-          <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-3">What's included</p>
+          <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-3">
+            What&apos;s included
+          </p>
           <ul className="space-y-2.5">
             {FEATURES.map((f) => (
               <li key={f} className="flex items-center gap-2.5 text-sm text-gray-700 dark:text-gray-300">
-                <CheckCircle size={14} className="text-green-500 shrink-0" />{f}
+                <CheckCircle size={14} className="text-green-500 shrink-0" />
+                {f}
               </li>
             ))}
           </ul>
@@ -134,9 +151,14 @@ export default function SubscriptionPage() {
       </div>
 
       <Button onClick={handleSubscribe} loading={paying} className="w-full py-3.5">
-        <Crown size={17} />{isActive ? 'Renew Subscription' : `Subscribe – ${formatINR(2000)}/month`}
+        <Crown size={17} />
+        {isActive
+          ? 'Renew Subscription'
+          : `Subscribe – ${formatINR(PLAN_AMOUNT)}/month`}
       </Button>
-      <p className="text-center text-xs text-gray-400 dark:text-slate-600 mt-3">Powered by Razorpay · Secure payment</p>
+      <p className="text-center text-xs text-gray-400 dark:text-slate-600 mt-3">
+        Powered by Razorpay · Secure payment
+      </p>
     </div>
   );
 }

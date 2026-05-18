@@ -39,7 +39,6 @@ export default function HomePage() {
     <div>
       <TopBar />
 
-      {/* Low stock alert */}
       {lowStock > 0 && (
         <div className="flex items-center gap-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 mb-5 text-sm text-red-700 dark:text-red-400">
           <AlertTriangle size={15} className="shrink-0" />
@@ -47,7 +46,7 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Search row */}
+      {/* Search row — OCR button visible on ALL screen sizes */}
       <div className="flex gap-2 mb-6">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -58,15 +57,22 @@ export default function HomePage() {
             className="w-full pl-10 pr-4 py-3 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500"
           />
         </div>
-        <button onClick={() => setShowBCode(true)}
+        {/* Barcode scan */}
+        <button
+          onClick={() => setShowBCode(true)}
           className="px-3.5 py-3 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700 transition-all"
-          title="Scan barcode">
+          title="Scan barcode"
+        >
           <ScanLine size={18} className="text-blue-500" />
         </button>
-        <button onClick={() => setShowOCR(true)}
-          className="hidden sm:flex px-3.5 py-3 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-all"
-          title="Scan product image">
-          <Package size={15} className="text-blue-500" /> OCR
+        {/* OCR image search — visible on mobile AND desktop */}
+        <button
+          onClick={() => setShowOCR(true)}
+          className="flex px-3.5 py-3 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-all"
+          title="Search by product image"
+        >
+          <Package size={15} className="text-blue-500" />
+          <span className="hidden xs:inline">OCR</span>
         </button>
       </div>
 
@@ -88,10 +94,9 @@ export default function HomePage() {
         </h2>
       </div>
 
-      {/* Product grid */}
       {loading ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {Array(8).fill(0).map((_, i) => <div key={i} className="h-56 skeleton rounded-2xl" />)}
+          {Array(8).fill(0).map((_, i) => <div key={i} className="aspect-square skeleton rounded-2xl" />)}
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700">
@@ -107,7 +112,6 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* FAB */}
       <button
         onClick={() => router.push('/dashboard/products/add')}
         className="fixed bottom-24 lg:bottom-8 right-5 w-14 h-14 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95 z-40"
